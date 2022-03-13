@@ -1,0 +1,335 @@
+---
+title: "ARIMA FOR DEMAND FORECASTING"
+author: "Tesfahun Tegene Boshe"
+date: "03/13/2022"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    code_folding: show
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=F,warning=F)
+```
+
+## Introduction
+
+In my last [blog](https://rpubs.com/Tesfahun_Boshe/wfmforecasting), I have discussed various forecasting methods and accuracy metrics. This blog is aimed at looking at ARIMA models in-depth. We will start with defining essential terms in time series analysis.
+
+Arima models require a stationary time series. It is important to stationarise the data in advance if  it is not stationary. What does the term stationary mean in this sense? 
+
+**Stationary time series* *
+
+A time series is stationary if it does not have trend, seasonality. Trend is the general direction of change of the data where as seasonality represents the seasonal variation. Another important property is that the variance of stationary time series is not time dependent (constant).
+
+
+*Trend* - the general short-term change in direction (Up/down) 
+
+*Seasonality* - increases and decreases in regular time of day, day of week, etc 
+
+**Stationarity Tests**
+Dickey-Fuller Tests and augmented Dickey-Fuller Test are the commonly used tests for stationarity. KSPSS test, PP test and White noise test(Ljung-Box test) can also be used. For Dickey-Fuller tests, p-value not less than 0.05 means that we fail to reject the null hypothesis. In other words the time series is non-stationary. When p-value is less than 0.05, we can reject the null hypothesis that the time series is not stationary. 
+
+Most real life time series data have both trend and seasonality. Let's see some examples of time series data and tell if they are stationary or not. 
+
+
+```{r}
+# loading the necessary package
+library(astsa)
+library(tseries)
+```
+
+a. Let's start with a white noise data we will generate using arima.sim simulator function from *astsa* package.
+
+```{r}
+
+WN <- arima.sim(model = list(order = c(0, 0, 0)), n = 200)
+plot(WN)
+
+adf.test(AirPassengers) # p-value = 0.01 indicates stationary data
+```
+
+
+b. Time series with trend and seasonality
+```{r}
+plot(AirPassengers)
+
+adf.test(AirPassengers) # p-value = 0.01 suggests stationary data but this must definitely be wrong
+```
+
+
+We can use *stl* function from stats base package to see the seasonality, trend and noise decomposition. Let's also 
+
+```{r}
+library(fpp2) # for autoplots
+
+autoplot(stl(AirPassengers,"periodic", robust=TRUE))
+```
+
+
+c. Some time series may not be so obvious. It is good to use the standard tests in that case. 
+
+c1. Dataset: U.S. Monthly Live Births 1948-1979.
+
+```{r}
+
+
+autoplot(stl(birth,"periodic", robust=TRUE))
+
+adf.test(birth) # Not stationary!
+```
+
+c2. Dataset: Southern Oscillation Index
+```{r}
+# data Southern Oscillation Index
+
+autoplot(stl(soi,"periodic")) # plot the stl decomposed data. 
+
+adf.test(soi) # Not stationary! 
+```
+
+
+## Stationarizing Time series data
+
+So how do we stationarize non-stationary time series? The technique depends on the type of non-stationarity observed in the data. 
+
+### a. Detrending
+
+**Differencing** is used to remove trends if the series is stationary around a trend. Such time series is usually called *trend stationary*. 
+
+Here is an example: We have seen 
+
+
+```{r}
+
+TrendSTationaryData <- arima.sim(model = list(order = c(0, 1, 0)), n = 200) 
+plot(TrendSTationaryData)
+
+```
+
+Let's try after first order differencing 
+```{r}
+
+plot(diff(TrendSTationaryData))
+```
+
+We can check the stationary with Dickey-Fuller Test. 
+```{r}
+adf.test(diff(TrendSTationaryData)) # p-value 0.01 - stationary
+```
+
+**Seasonal Detrending ** should be applied if there is seasonal trend. Let's take a look at the example below
+
+The *birth* dataset on example c above will not be fully detrended after one differencing. An additional seasonal differencing is what we need. 
+
+
+```{r}
+d_birth <- diff(birth)
+plot(d_birth) # not stationary since seasonal trend remains
+
+```
+
+Seasonal differencing
+```{r}
+dd_birth <- diff(d_birth, lag = 12) # lag  = 12 makes it seasonal differecing. 12 since monthly seasonality
+plot(diff(dd_birth)) 
+
+adf.test(dd_birth) # p-value = 0.01 - stationary!
+
+```
+
+### b. Damping - reducing the variance
+
+If your data has large and non-constant variance, it may help to damp the data. Taking the logarithm of the time series is one common approach. 
+
+Let's use *djia* dataset - financial data of "Dow Jones Industrial Average" to observe this. 
+
+```{r}
+
+plot(djia$Close,main = "Original Close Price")  # close price
+
+plot(log((djia$Close)),main = "Log Close Price") # more constant variance
+
+plot(diff(log((djia$Close))),main = "Differenced Log Close Price")
+```
+
+
+## Model Selection
+
+The list of Box-Jenkin's models includes autoregressive - AR models, moving average - MA models, ARMA - autoregressive and moving average models, autoregressive integrated moving average models - ARIMA, seasonal ARIMA - SARIMA and others. 
+
+As the names indicate, the models depend on the nature of the data. We need to decompose the time series to see if or not autogressive, moving average, integration and seasonality are prevalent on the data. 
+
+
+Box-Jenkin's models represent the components interms of combinations of letters: order = (p,d,q), seasonal = (P,D,Q), S. The parameters are found in the process of stationarizing the series. 
+ 
+* p - number of lags (autoregressive part)
+* d - number of differencing needed
+* q - number of error lags (Moving average part)
+
+* P - number of seasonal lags (autoregressive part)
+* D - number of seasonal differencing needed
+* Q - number of seasonal error lags (Moving average part)
+* S - seasonality
+
+
+ACF (autocorrelation function) plots and PACF - partial autocorrelation function plots can be used to detect the presence of AR and MA parts. If you have applied differencing in the process of stationarizing, that indicates there is integration in your data. 
+
+d - the number of normal differencing needed, D - the number of seasonal differencings applied. 
+
+Let's see how we can use ACF and PACF plots to find AR(p,P) and MA(q,Q) components. *acf2* function from *astsa*  package returns the both plots. 
+
+**The basic guideline for interpreting the ACF and PACF plots are as following:**
+
+1. Look for tail off pattern in either ACF or PACF. The opposite of tail off is cut-off(no more correlation spikes). 
+
+* The two blue dash lines pointed by purple arrows represent the significant threshold levels. Anything that spikes over these two lines reveals the significant correlations.
+
+* When looking at ACF plot, we ignore the long spike at lag 0 (pointed by the blue arrow). For PACF, the line usually starts at 1.
+
+* The lag axes will be different depending on the times series data
+
+
+2. If tail off at ACF → AR model → Cut off at PACF will provide order p for AR(p).
+
+3. If tail off at PACF → MA model → Cut off at ACF will provide order q for MA(q).
+
+4. Tail of at both ACF and PACF → ARMA model (decide p,q with trial and error method starting with smallest numbers)
+
+5. tail off at seasonal frequencies (n*frequency), use rules 1-4 to define P,Q or both. 
+
+Next we will apply those steps on the datasets seen above. 
+
+a. white noise
+
+```{r}
+
+acf2(WN) 
+
+```
+
+> See that there are no spikes. p = 0, q = 0
+
+> Obviously the seasonal parameters are also zero. P = 0, Q = 0
+
+b. 
+
+```{r}
+acf2(AirPassengers)
+
+```
+> Since there if no tail off, let's try after differencing. 
+
+```{r}
+
+acf2(diff(AirPassengers))
+```
+
+> Non-seasonal part tails off at PACF:- p = 1, d = 1, q = 0
+
+> Seasonal part tails off at ACF, no seasonal differencing applied:- P= 0, d = 0, Q = 0
+
+c.a 
+
+```{r}
+acf2(diff(birth))
+
+
+```
+
+> Differencing is needed since acf2(birth) has too much autocorrelation AKA Never tailing off.  d = 1, D = 0.
+
+> Non-seasonal part tails off at both PACF and ACF. ( we can attempt with p =1,q = 1) 
+
+> Seasonal part tails of at both ACF and PACF (so we can start at P = 1, Q = 1)
+
+
+c.b
+
+```{r}
+
+acf2(soi)
+```
+> No differencing needed (d = 0, D = 0)
+
+> non seasonal part tails of at ACF:- p = 1
+
+> Seasonal part tails off at ACF:- P = 1
+
+
+## Fitting Model
+
+There are several R packages for time series analysis. We have discussed *forecast* package in the last blog. We will use *astsa* this time. I find *astsa* functions easier to remember and more straight forward. 
+
+Let's start with the first dataset and see how we can interpret the function outputs. The above defined function parameters will be used. 
+
+```{r}
+
+sarima(WN,
+       p = 0,d = 0,q = 0,
+       P = 0, D = 0, Q = 0,
+       S = 0
+  
+)
+
+```
+**Output interpretation**
+
+Like in standard regressions models, the modelling is wrong if the residuals of the model do not behave like white noise. Therefore, 
+
+* *Standard Residuals Plot* - should look like that of standard white noise plot for the model to be correct. 
+
+* *ACF of residuals* - should have no spikes at all. (no autoregression should be left in the residual)
+
+* *Q-Q plot of residuals* - should be as linear as possible. 
+
+* *p - values of Ljung-Box statistic* - should all be above the blue threshold line. 
+
+
+> Accordingly, the residuals of our first model meet the test for white noise. The model can be accepted for forecasting. 
+
+Taking another example,
+
+```{r}
+
+sarima(birth,
+       p = 1,d = 1,q = 1,
+       P = 1, D = 0, Q = 1,
+       S = 12
+  
+)
+
+```
+
+> The model residual looks like white noise. The model can be accepted for forecasting. 
+
+
+## Forecasting 
+
+Forecasting is an easy fit once the model fit. We will use *sarima.for* function from the same package. In addition to the model parameters discussed so far, we will need the *n.ahead* parameter to specify how far ahead we would like to forecast. 
+
+Let's forecast the US Monthly Live Births for the five future years: 1980-1984, 
+```{r}
+
+sarima.for(birth,
+       p = 1,d = 1,q = 1,
+       P = 1, D = 0, Q = 1,
+       S = 12,
+       n.ahead = 5*12) # n.ahead should be number of expected data points. (5 x 12 months)
+```
+
+> Unfortunately we won't be able to assess our accuracy, but it is easy to see that the forecast captures the variations and seasonality in the data pretty well. 
+
+
+If you have gone through this and the previous [blog](https://rpubs.com/Tesfahun_Boshe/wfmforecasting), you should have all it takes to start practicing. You can find the source code of this blog at my Github account. [Github](https://github.com/tesfahunboshe?tab=repositories)
+
+I am crazy about data science and applying data science skills to workforce management. Feel free to reach me at [LinkedIn](https://www.linkedin.com/in/tesfahun-tegene-boshe/) if you wish to connect :)
+
+You may as well enjoy my other blogs at [RPubs](https://rpubs.com/Tesfahun_Boshe)
+ 
+
+
+
