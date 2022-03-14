@@ -1,5 +1,5 @@
 ---
-title: "ARIMA FOR DEMAND FORECASTING"
+title: "WFM forecasting with R - ARIMA"
 author: "Tesfahun Tegene Boshe"
 date: "03/13/2022"
 output: 
@@ -21,7 +21,7 @@ In my last [blog](https://rpubs.com/Tesfahun_Boshe/wfmforecasting), I have discu
 
 Arima models require a stationary time series. It is important to stationarise the data in advance if  it is not stationary. What does the term stationary mean in this sense? 
 
-**Stationary time series* *
+**Stationary time series**
 
 A time series is stationary if it does not have trend, seasonality. Trend is the general direction of change of the data where as seasonality represents the seasonal variation. Another important property is that the variance of stationary time series is not time dependent (constant).
 
@@ -264,6 +264,15 @@ acf2(soi)
 
 There are several R packages for time series analysis. We have discussed *forecast* package in the last blog. We will use *astsa* this time. I find *astsa* functions easier to remember and more straight forward. 
 
+The *sarima* function can handle all of the models under Box-Jenkin's, we will only need to specify the parameters properly. 
+
+* Pure AR - sarima(data, p,0,0)
+* Pure MA - sarima(data, 0,0,p)
+* Pure ARMA - sarima(data, p,0,q)
+* Pure ARIMA - sarima(data, p,d,q)
+* Pure Seasonal - sarima(data, 0,0,0, P,D,Q, S)
+* Seasonal ARIMA - sarima(data, p,d,q,P,D,Q,S)
+
 Let's start with the first dataset and see how we can interpret the function outputs. The above defined function parameters will be used. 
 
 ```{r}
@@ -321,7 +330,7 @@ sarima.for(birth,
        n.ahead = 5*12) # n.ahead should be number of expected data points. (5 x 12 months)
 ```
 
-> Unfortunately we won't be able to assess our accuracy, but it is easy to see that the forecast captures the variations and seasonality in the data pretty well. 
+> While it is clear to see that the forecast captures the variations and seasonality in the data pretty well, we can use information criteria (AIC,BIC) to choose between models of similar type. The lower AIC or BIC values indicate a better-fit model.
 
 
 If you have gone through this and the previous [blog](https://rpubs.com/Tesfahun_Boshe/wfmforecasting), you should have all it takes to start practicing. You can find the source code of this blog at my Github account. [Github](https://github.com/tesfahunboshe?tab=repositories)
